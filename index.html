@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E5B3A">
+<title>dp_Sazhing Field Monitoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --green:#1E5B3A; --green-d:#14402A; --green-t:#EAF3EE; --green-b:#B9D8C6;
+  --ink:#14201A; --ink2:#3F4B44; --mut:#55625A; --line:#DCE3DE; --line2:#C5CEC8; --bg2:#F2F5F3;
+  --orange:#FF7A1A; --blue:#1A73E8; --chip:rgba(20,32,26,.88);
+  --good:#5FD08A; --fair:#FFC36B; --poor:#FF8A80;
+  --sat: env(safe-area-inset-top,0px); --sab: env(safe-area-inset-bottom,0px);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:var(--bg2);-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:3px solid #4C8DF6;outline-offset:2px}
+.mono{font-family:var(--mono)}
+.screen{position:fixed;inset:0;display:none;flex-direction:column}
+.screen.on{display:flex}
+.hidden{display:none!important}
+.ico{display:block;flex-shrink:0}
+
+/* ---------- plots ---------- */
+#plots{background:var(--bg2)}
+.phead{flex-shrink:0;background:var(--green);color:#fff;padding:calc(16px + var(--sat)) 16px 18px;display:flex;flex-direction:column;gap:12px}
+.phead-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ptitle{font-size:20px;font-weight:700;line-height:1.2}
+.psub{font-size:13px;color:#CFE5D8}
+.offline{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.14);font-size:12px;font-weight:600;white-space:nowrap}
+.prog-row{display:flex;justify-content:space-between;font-size:14px}
+.prog{height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden}
+.prog>div{height:8px;background:#8FE0AE;width:0;transition:width .4s}
+.pbody{flex:1;overflow-y:auto;padding:12px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.cont{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:#E3EEFD;border:1.5px solid #9DBDF0;color:#0B3A82;text-align:left;width:100%}
+.cont b{display:block;font-size:15px}
+.cont span{font-size:13px}
+.search{display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;border-radius:12px;background:#fff;border:1.5px solid var(--line2)}
+.search input{flex:1;border:none;outline:none;background:transparent;font-size:15px;min-width:0}
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fchip{height:36px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line2);background:#fff;font-size:13px;font-weight:500}
+.fchip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
+.iconbtn-sm{margin-left:auto;width:36px;height:36px;border-radius:10px;border:1.5px solid var(--line2);background:#fff;display:flex;align-items:center;justify-content:center}
+.iconbtn-sm[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.plist{display:flex;flex-direction:column;gap:8px}
+.prow{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:#fff;border:1px solid var(--line);text-align:left;width:100%}
+.prow .nm{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .ar{font-family:var(--mono);font-size:12px;color:var(--mut)}
+.pill{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.todo{background:#FFF1D6;color:#6A4500}
+.pill.done{background:#E3F1E8;color:#145232}
+.pill.inprog{background:#E3EEFD;color:#0B3A82}
+#plotsMap{height:380px;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.empty{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.empty h2{margin:0;font-size:18px}
+.empty p{margin:0;color:var(--ink2);font-size:14px;line-height:1.5}
+.linkbtn{background:none;border:none;color:var(--green);font-weight:600;font-size:14px;padding:10px 0;text-align:left}
+.linkbtn.danger{color:#A3261B}
+.pfoot{flex-shrink:0;display:flex;gap:10px;padding:12px 16px calc(14px + var(--sab));background:#fff;border-top:1px solid var(--line)}
+
+/* ---------- buttons ---------- */
+.btn{height:56px;border-radius:16px;border:none;background:var(--green);color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px}
+.btn:active{background:var(--green-d)}
+.btn.outline{background:#fff;color:var(--green);border:1.5px solid var(--green)}
+.btn.grey{background:#E8EDEA;color:#6B776F}
+.btn.flex{flex:1}
+.btn.lg{height:56px;font-size:17px}
+.btn:disabled{background:#E8EDEA;color:#6B776F;border-color:#E8EDEA}
+
+/* ---------- survey ---------- */
+#survey{background:#24301F}
+#map,#mapFallback{position:absolute;inset:0}
+#mapFallback{background:#2B3826;width:100%;height:100%}
+.top{position:absolute;top:calc(14px + var(--sat));left:12px;right:12px;display:flex;align-items:center;gap:8px;z-index:5}
+.fab{width:48px;height:48px;border-radius:14px;border:none;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);color:var(--ink);flex-shrink:0}
+.fab.blue{background:var(--blue);color:#fff}
+.fab.active{background:var(--ink);color:#fff}
+.titlebox{flex:1;min-width:0;height:48px;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;flex-direction:column;justify-content:center;padding:0 14px}
+.titlebox b{font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titlebox span{font-size:12px;color:var(--mut);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gps{position:absolute;top:calc(74px + var(--sat));left:12px;z-index:5;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 12px;border-radius:14px;background:var(--chip);color:#fff;border:none;text-align:left}
+.gps b{font-family:var(--mono);font-size:17px;font-weight:600;line-height:1.1;display:block}
+.gps span{font-size:11px;color:#E2EFE7;line-height:1.3;display:block}
+.right{position:absolute;top:calc(74px + var(--sat));right:12px;z-index:5;display:flex;flex-direction:column;gap:8px}
+.legend{position:absolute;left:12px;z-index:5;display:flex;gap:6px}
+.lg{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:var(--chip);color:#fff;font-size:12px}
+.warn{position:absolute;top:calc(130px + var(--sat));left:12px;z-index:5;max-width:250px;padding:8px 12px;border-radius:12px;background:#FFF4E5;border:1.5px solid #F0C27A;color:#6A3E00;font-size:13px}
+.farbanner{position:absolute;top:calc(130px + var(--sat));left:12px;right:72px;z-index:5;padding:8px 12px;border-radius:12px;background:#fff;color:var(--ink);font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.25);padding:4px 14px calc(12px + var(--sab));display:flex;flex-direction:column;gap:10px}
+.handle{align-self:center;width:40px;height:5px;border-radius:3px;background:var(--line2)}
+.hbtn{align-self:stretch;height:22px;border:none;background:none;display:flex;align-items:center;justify-content:center;padding:0}
+.sheet.min .tiles,.sheet.min .seg,.sheet.min .hint,.sheet.min .closecard,.sheet.min .sinfo{display:none}
+.sinfo{font-size:14px;color:var(--ink2)}
+.ptbtn{background:none;border:none;color:#fff;padding:0;text-align:left;font:inherit}
+.cardopen{flex:1;min-width:0;display:flex;gap:12px;align-items:flex-start;background:none;border:none;padding:0;text-align:left}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{background:var(--bg2);border-radius:12px;padding:8px 10px;min-width:0}
+.tile .k{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--mut)}
+.tile .v{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .s{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:#E8EDEA;border-radius:12px;padding:4px}
+.seg button{height:40px;border:none;border-radius:9px;background:transparent;font-size:14px;font-weight:500;color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:8px}
+.seg button[aria-pressed="true"]{background:#fff;font-weight:600;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.actions{display:flex;gap:10px}
+.undo{width:56px;height:56px;border-radius:16px;border:1.5px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.undo:disabled{color:#A3ADA7}
+.undo[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.save-sm{width:104px}
+.hint{font-size:13px;color:var(--mut);text-align:center;margin-top:-4px}
+.avgcard{display:flex;align-items:center;gap:16px;padding:14px;border-radius:16px;background:var(--green-t);border:1.5px solid var(--green-b)}
+.ring{position:relative;width:76px;height:76px;flex-shrink:0}
+.ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .c b{font-family:var(--mono);font-size:22px;line-height:1}
+.ring .c span{font-size:11px;color:var(--ink2)}
+.avgcard h3{margin:0 0 4px;font-size:17px}
+.avgcard p{margin:0 0 4px;font-size:14px;color:var(--ink2)}
+.avgcard .r{font-family:var(--mono);font-size:13px;color:var(--green);font-weight:600}
+.rec-head{display:flex;align-items:center;justify-content:space-between}
+.rec-head div{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600}
+.dot{width:12px;height:12px;border-radius:6px;background:#E0560E;box-shadow:0 0 0 5px rgba(224,86,14,.18)}
+.dot.paused{background:#8A948E;box-shadow:none}
+.closecard{padding:12px 14px;border-radius:14px;background:var(--green-t);border:1.5px solid var(--green-b);display:flex;align-items:center;gap:12px;font-size:14px}
+.vmark{position:relative}
+.vnum.drag{width:28px;height:28px;border-radius:14px;line-height:23px;font-size:12px;cursor:grab;touch-action:none}
+.vnum{width:22px;height:22px;border-radius:11px;background:var(--orange);border:2.5px solid #fff;color:#fff;font:700 11px/17px 'IBM Plex Sans',sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+/* ---------- save ---------- */
+#save,#saved{background:var(--bg2)}
+.bar{height:calc(64px + var(--sat));padding-top:var(--sat);flex-shrink:0;display:flex;align-items:center;gap:8px;padding-left:12px;padding-right:12px;background:#fff;border-bottom:1px solid var(--line)}
+.bar .back{width:44px;height:44px;border-radius:12px;border:none;background:transparent;display:flex;align-items:center;justify-content:center}
+.bar b{display:block;font-size:17px}
+.bar span{font-size:12px;color:var(--mut)}
+.sbody{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:12px 16px 16px}
+.res{background:#fff;border-radius:16px;border:1px solid var(--line);overflow:hidden}
+.res-top{display:flex}
+.res-top .info{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.res-top .k{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--mut)}
+.res-top .big{font-family:var(--mono);font-size:24px;font-weight:600;line-height:1.1}
+.res-top .sm{font-size:13px;color:var(--ink2)}
+.badge{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.b-good{background:#E3F1E8;color:#145232}.b-fair{background:#FFF1D6;color:#6A4500}.b-bad{background:#FDE4E1;color:#8A1C12}.b-none{background:var(--bg2);color:var(--ink2)}
+.res-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line)}
+.res-row>div{padding:10px 12px;border-right:1px solid var(--line);min-width:0}
+.res-row>div:last-child{border-right:none}
+.res-row .k{font-size:11px;color:var(--mut);font-weight:600}
+.res-row .v{font-family:var(--mono);font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label,.flabel{font-size:13px;font-weight:600;color:var(--ink2)}
+.field input,.field textarea,.field select{height:46px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;padding:0 12px;font-size:15px;width:100%}
+.field textarea{height:72px;padding:10px 12px;resize:none}
+.finds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.finds button{min-height:48px;border-radius:12px;border:1.5px solid var(--line2);background:#fff;font-size:14px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 8px}
+.finds button[aria-pressed="true"]{border:2px solid var(--green);background:var(--green-t);color:var(--green-d);font-weight:600}
+.finds button.wide{grid-column:span 2}
+.photo{display:flex;align-items:center;gap:10px}
+.photo img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.sfoot{flex-shrink:0;display:flex;gap:10px;padding:12px 16px calc(16px + var(--sab));background:#fff;border-top:1px solid var(--line)}
+.camera{width:60px;flex-shrink:0;border-radius:16px;border:1.5px solid var(--line2);background:#fff;display:flex;align-items:center;justify-content:center}
+.camera.has{border-color:var(--green);background:var(--green-t);color:var(--green)}
+
+/* ---------- saved ---------- */
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.card .t{flex:1;min-width:0}
+.card .t b{display:block;font-size:15px}
+.card .t div{font-size:13px;color:var(--ink2);margin-top:2px}
+.card .del{border:none;background:none;color:#A3261B;font-size:13px;font-weight:600;padding:8px 0 8px 8px;white-space:nowrap}
+.dlgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dlgrid .btn{font-size:14px;height:52px}
+
+/* ---------- overlay sheets ---------- */
+.ov{position:fixed;inset:0;z-index:50;background:rgba(10,18,14,.5);display:none;align-items:flex-end}
+.ov.on{display:flex}
+.ovs{width:100%;max-height:85vh;overflow-y:auto;background:#fff;border-radius:24px 24px 0 0;padding:10px 16px calc(18px + var(--sab));display:flex;flex-direction:column;gap:14px}
+.ovs h2{margin:0;font-size:18px}
+.ovs p{margin:0;font-size:14px;line-height:1.5;color:var(--ink2)}
+.ovs ol{margin:0;padding-left:20px;font-size:14px;line-height:1.6;color:var(--ink2)}
+.toast{position:fixed;left:16px;right:16px;bottom:calc(24px + var(--sab));z-index:60;background:var(--ink);color:#fff;border-radius:14px;padding:12px 16px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);transform:translateY(160%);transition:transform .25s}
+.toast{pointer-events:none;visibility:hidden}
+.toast.on{transform:none;visibility:visible}
+.toast.up{bottom:auto;top:calc(130px + var(--sat));transform:translateY(-300%)}
+.toast.up.on{transform:none}
+.maplibregl-ctrl-attrib{font-size:10px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (min-width:600px){.screen{max-width:480px;margin:0 auto;box-shadow:0 0 0 1px var(--line)}}
+</style>
+</head>
+<body>
+
+<!-- ================= PLOT LIST ================= -->
+<section id="plots" class="screen" aria-label="Plot list">
+  <header class="phead">
+    <div class="phead-row">
+      <div>
+        <button class="ptbtn" data-act="mainmap" aria-label="Open the satellite map"><div class="ptitle">dp_Sazhing Field Monitoring</div></button>
+        <div class="psub">Alienable plots · field validation</div>
+      </div>
+      <div id="offlineChip" class="offline hidden">
+        <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Works offline
+      </div>
+    </div>
+    <div id="progBox" class="hidden" style="display:flex;flex-direction:column;gap:6px">
+      <div class="prog-row"><div id="progTxt"></div><div id="progSub" style="color:#CFE5D8"></div></div>
+      <div class="prog"><div id="progBar"></div></div>
+    </div>
+  </header>
+  <div class="pbody">
+    <div id="contBox"></div>
+    
+    <div id="listTools" class="hidden" style="display:flex;flex-direction:column;gap:10px">
+      <div id="searchBox" class="search">
+        <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#55625A" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg>
+        <label for="q" class="hidden">Search plots</label>
+        <input id="q" type="search" placeholder="Search plot name or ID" autocomplete="off">
+      </div>
+      <div class="filters">
+        <button class="fchip" data-f="all" aria-pressed="true"></button>
+        <button class="fchip" data-f="todo" aria-pressed="false"></button>
+        <button class="fchip" data-f="done" aria-pressed="false"></button>
+        <button id="mapToggle" class="iconbtn-sm" aria-label="Show plots on map" aria-pressed="false">
+          <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="plotsMap" class="hidden"></div>
+    <div id="plist" class="plist"></div>
+    <div id="listExtra" class="hidden" style="display:flex;flex-direction:column">
+      <button class="linkbtn" data-act="free">Survey</button>
+      <button id="clearPlots" class="linkbtn danger" data-act="clearplots">Clear plot list (saved resurveys are kept)</button>
+    </div>
+  </div>
+  <footer class="pfoot">
+    <button class="btn outline flex" data-act="addkml">
+      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add KML/KMZ
+    </button>
+    <button class="btn flex" data-act="saved">
+      <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Saved &amp; export <span id="savedCnt"></span>
+    </button>
+  </footer>
+  <input id="file" type="file" accept=".kml,.kmz,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz" multiple class="hidden">
+</section>
+
+<!-- ================= SURVEY ================= -->
+<section id="survey" class="screen" aria-label="Survey">
+  <div id="map"></div>
+  <svg id="mapFallback" class="hidden" aria-hidden="true"></svg>
+  <div class="top">
+    <button class="fab" data-act="back" aria-label="Back to plot list">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="titlebox"><b id="sTitle"></b><span id="sSub"></span></div>
+    <button class="fab" data-act="settings" aria-label="Survey settings">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </div>
+  <button id="gpsChip" class="gps" data-act="gpshelp" aria-label="GPS status">
+    <svg class="ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle id="gDotHalo" cx="12" cy="12" r="10" fill="#FF8A80" fill-opacity=".3"/><circle id="gDot" cx="12" cy="12" r="5.5" fill="#FF8A80" stroke="#fff" stroke-width="2"/></svg>
+    <div><b id="gAcc">GPS …</b><span id="gTxt">Waiting for GPS</span></div>
+  </button>
+  <div class="right">
+    <button id="btnLayers" class="fab" data-act="layers" aria-label="Map labels and roads" aria-pressed="false">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+    </button>
+    <button id="btnMe" class="fab blue" data-act="me" aria-label="Centre on my location">
+      <svg class="ico" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#fff" fill-opacity=".3"/><circle cx="12" cy="12" r="5.5" fill="#fff"/></svg>
+    </button>
+    <button class="fab" data-act="fit" aria-label="Fit plot on screen">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+    </button>
+  </div>
+  <div id="legend" class="legend hidden">
+    <div class="lg"><div style="width:14px;border-top:2.5px dashed #fff"></div>Record</div>
+    <div class="lg"><div style="width:14px;height:4px;border-radius:2px;background:var(--orange)"></div>Resurvey</div>
+  </div>
+  <div id="skipWarn" class="warn hidden"></div>
+  <div id="farBanner" class="farbanner hidden"></div>
+  <div id="sheet" class="sheet"></div>
+</section>
+
+<!-- ================= SAVE ================= -->
+<section id="save" class="screen" aria-label="Save resurvey">
+  <div class="bar">
+    <button class="back" data-act="saveback" aria-label="Back to survey">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div><b>Save resurvey</b><span id="svSub"></span></div>
+  </div>
+  <div class="sbody">
+    <div id="svRes" class="res"></div>
+    <div class="two">
+      <div class="field"><label for="fName">Plot name / ID</label><input id="fName" autocomplete="off"></div>
+      <div class="field"><label for="fSurv">Surveyor</label><input id="fSurv" autocomplete="name"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="flabel" id="findLbl">Ground finding</div>
+      <div class="finds" role="group" aria-labelledby="findLbl" id="finds"></div>
+    </div>
+    <div class="field"><label for="fRem">Remarks</label><textarea id="fRem" placeholder="Land use, owner present, landmarks…"></textarea></div>
+    <div id="photoBox" class="photo hidden"><img id="photoImg" alt="Site photo"><button class="linkbtn danger" data-act="rmphoto">Remove photo</button></div>
+  </div>
+  <div class="sfoot">
+    <button id="camBtn" class="camera" data-act="photo" aria-label="Add a photo">
+      <svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+    </button>
+    <button class="btn flex" data-act="dosave">Save resurvey</button>
+  </div>
+  <input id="photoIn" type="file" accept="image/*" capture="environment" class="hidden">
+</section>
+
+<!-- ================= SAVED ================= -->
+<section id="saved" class="screen" aria-label="Saved resurveys">
+  <div class="bar">
+    <button class="back" data-act="home" aria-label="Back to plot list">
+      <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div><b>Saved resurveys</b><span id="sdSub"></span></div>
+  </div>
+  <div class="sbody">
+    <div id="dlBox" class="hidden" style="display:flex;flex-direction:column;gap:8px">
+      <div class="flabel">Download results</div>
+      <div class="dlgrid">
+        <button class="btn" data-act="dlzip">All files (ZIP)</button>
+        <button class="btn outline" data-act="dlkml">KML</button>
+        <button class="btn outline" data-act="dlsum">Summary CSV</button>
+        <button class="btn outline" data-act="dlcor">Corners CSV</button>
+      </div>
+      <p style="margin:0;font-size:12px;color:var(--mut)">Results are stored only on this phone. Download them regularly.</p>
+    </div>
+    <div id="sdList" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</section>
+
+<!-- ================= OVERLAYS ================= -->
+<div id="ov" class="ov" role="dialog" aria-modal="true"><div id="ovs" class="ovs"></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   dp_Sazhing Field Monitoring — single-file field survey app
+   ========================================================= */
+var GOOGLE_KEY = ''; // optional: Google Map Tiles API key for Google satellite imagery
+
+var R=6371008.8, D=Math.PI/180, ACRE=4046.8564224;
+var KEY='dp-sazhing-v1', OLDKEY='sazhing-survey-v1';
+var FINDINGS=['Matches record','Boundary differs','Encroachment seen','Plot not found / not accessible','Other'];
+
+var S={plots:[],saved:[],cur:null,surveyor:'',settings:{avg:10,spacing:3,walkAcc:15}};
+var gps={watch:null,fix:null,err:null};
+var avg=null, walk=null, wake=null, map=null, mapReady=false, pmap=null, follow=true, labels=false;
+var filter='all', query='', showMap=false, fitted=false, tileErr=0, tileWarned=false, saveWarned=false;
+var markers=[], form={finding:'',photo:null}, delArm=null, vm='browse', viewId=null, sheetMin=false, moveOn=false, mv=null, noMap=false;
+
+function $(i){return document.getElementById(i);}
+function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(n,d){return n==null||isNaN(n)?'—':Number(n).toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function vib(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+
+/* ---------------- storage ---------------- */
+function load(){
+  var o=null;
+  try{o=JSON.parse(localStorage.getItem(KEY)||'null');}catch(e){}
+  if(!o){ try{o=JSON.parse(localStorage.getItem(OLDKEY)||'null');}catch(e){} if(o) o=migrate(o); }
+  if(o&&typeof o==='object') for(var k in o) S[k]=o[k];
+  if(!Array.isArray(S.plots)) S.plots=[]; if(!Array.isArray(S.saved)) S.saved=[];
+  S.settings=Object.assign({avg:10,spacing:3,walkAcc:15},S.settings||{});
+  S.plots.forEach(function(p){ if(!p.id) p.id=uid(); });
+}
+function migrate(o){ // data from the earlier Sazhing Survey version
+  (o.plots||[]).forEach(function(p){ if(!p.id) p.id=uid(); });
+  (o.saved||[]).forEach(function(v){ if(!v.plotId){ var m=(o.plots||[]).filter(function(p){return p.name===(v.recName||v.plot);})[0]; v.plotId=m?m.id:null; } });
+  if(o.cur){ var p=(o.plots||[])[o.cur.plotIdx]; o.cur.plotId=p?p.id:null; delete o.cur.plotIdx; }
+  return o;
+}
+function store(){
+  try{ localStorage.setItem(KEY,JSON.stringify(S)); }
+  catch(e){ if(!saveWarned){ saveWarned=true; alertSheet('Phone storage is full','New points may not be kept. Download your results from Saved & export, then delete old resurveys or remove the photo.'); } }
+}
+
+/* ---------------- geometry ---------------- */
+function projector(list){
+  var lo=0,la=0; list.forEach(function(p){lo+=p[0];la+=p[1];}); lo/=list.length; la/=list.length;
+  var k=Math.cos(la*D);
+  return function(p){return [(p[0]-lo)*D*R*k,(p[1]-la)*D*R];};
+}
+function ll(p){return [p.lon,p.lat];}
+function area(ring){ if(!ring||ring.length<3) return 0; var f=projector(ring), q=ring.map(f), a=0;
+  for(var i=0;i<q.length;i++){var j=(i+1)%q.length; a+=q[i][0]*q[j][1]-q[j][0]*q[i][1];} return Math.abs(a)/2; }
+function dist(a,b){var k=Math.cos((a[1]+b[1])/2*D); return Math.hypot((b[0]-a[0])*D*R*k,(b[1]-a[1])*D*R);}
+function pathLen(r,closed){var s=0; for(var i=1;i<r.length;i++) s+=dist(r[i-1],r[i]); if(closed&&r.length>2) s+=dist(r[r.length-1],r[0]); return s;}
+function segD(p,a,b){var dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy,t=l?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l:0; t=Math.max(0,Math.min(1,t)); return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);}
+function shift(pts,rec){ if(!rec||rec.length<3||!pts.length) return null;
+  var f=projector(rec.concat(pts)), q=rec.map(f), s=0, m=0;
+  pts.forEach(function(p){ var x=f(p), best=Infinity; for(var i=0;i<q.length;i++) best=Math.min(best,segD(x,q[i],q[(i+1)%q.length])); s+=best; m=Math.max(m,best); });
+  return {mean:s/pts.length,max:m}; }
+function circle(lon,lat,r){var k=Math.cos(lat*D),c=[];for(var i=0;i<=40;i++){var a=i/40*2*Math.PI;c.push([lon+r*Math.cos(a)/(R*k)/D,lat+r*Math.sin(a)/R/D]);}return c;}
+function bearing(a,b){var y=Math.sin((b[0]-a[0])*D)*Math.cos(b[1]*D),x=Math.cos(a[1]*D)*Math.sin(b[1]*D)-Math.sin(a[1]*D)*Math.cos(b[1]*D)*Math.cos((b[0]-a[0])*D);
+  return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(((Math.atan2(y,x)/D+360)%360)/45)%8];}
+function thumb(ring,w,h,pad){ if(!ring||ring.length<2) return ''; var f=projector(ring),q=ring.map(f),xs=q.map(function(p){return p[0];}),ys=q.map(function(p){return p[1];});
+  var x0=Math.min.apply(0,xs),x1=Math.max.apply(0,xs),y0=Math.min.apply(0,ys),y1=Math.max.apply(0,ys),s=Math.min((w-2*pad)/((x1-x0)||1),(h-2*pad)/((y1-y0)||1));
+  var ox=(w-(x1-x0)*s)/2,oy=(h-(y1-y0)*s)/2;
+  return 'M'+q.map(function(p){return ((p[0]-x0)*s+ox).toFixed(1)+' '+((y1-p[1])*s+oy).toFixed(1);}).join(' L')+' Z'; }
+
+/* ---------------- status helpers ---------------- */
+function doneCount(id){return S.saved.filter(function(v){return v.plotId===id;}).length;}
+function diffClass(pct){ if(pct==null) return 'b-none'; var a=Math.abs(pct); return a<=5?'b-good':a<=15?'b-fair':'b-bad'; }
+function diffWords(pct){ if(pct==null) return 'No record to compare'; var a=Math.abs(pct); return a<=5?'Within 5% of record':a<=15?'5–15% from record':'More than 15% from record'; }
+function stats(){
+  var c=S.cur; if(!c) return {};
+  var ring=c.pts.map(ll), a=area(ring), ra=c.rec?area(c.rec):null;
+  var sh=shift(ring,c.rec), gp=c.pts.filter(function(p){return p.acc!=null;}), acc=gp.length?gp.reduce(function(s,p){return s+p.acc;},0)/gp.length:null;
+  return {ring:ring,area:a,recArea:ra,diff:(ra&&c.pts.length>=3)?a-ra:null,pct:(ra&&c.pts.length>=3)?(a-ra)/ra*100:null,shift:sh,acc:acc,perim:pathLen(ring,true)};
+}
+
+/* ---------------- navigation ---------------- */
+var cur='plots';
+function show(id){
+  ['plots','survey','save','saved'].forEach(function(s){$(s).classList.toggle('on',s===id);});
+  if(cur!==id) $('toast').classList.remove('on');
+  cur=id;
+  if(id==='plots') renderPlots();
+  if(id==='survey'){ startGPS(); initMap(); keepAwake(vm==='survey'); renderSurvey(); setTimeout(function(){ if(map){ map.resize(); if(mapReady) fitPlot(); } },60); }
+  else keepAwake(false);
+  if(id==='save') renderSave();
+  if(id==='saved') renderSaved();
+}
+
+/* ---------------- plots screen ---------------- */
+function renderPlots(){
+  var n=S.plots.length, done=S.plots.filter(function(p){return doneCount(p.id)>0;}).length;
+  $('savedCnt').textContent=S.saved.length?'('+S.saved.length+')':'';
+  $('listTools').classList.toggle('hidden',n<2);
+  $('searchBox').classList.toggle('hidden',n<4);
+  $('listExtra').classList.remove('hidden'); $('clearPlots').classList.toggle('hidden',n===0);
+  $('progBox').classList.toggle('hidden',n===0);
+  if(n){ $('progTxt').innerHTML='<span class="mono" style="font-weight:600">'+done+'</span> of '+n+' resurveyed';
+    $('progSub').textContent=S.cur&&S.cur.pts.length?'1 in progress':''; $('progBar').style.width=(done/n*100)+'%'; }
+  var c=S.cur;
+  $('contBox').innerHTML=c&&c.pts.length?'<button class="cont" data-act="continue"><svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><div><b>Continue '+esc(c.name)+'</b><span>'+c.pts.length+(c.pts.length===1?' point':' points')+' recorded · not saved yet</span></div></button>':'';
+  var fb=document.querySelectorAll('.fchip');
+  fb[0].textContent='All '+n; fb[1].textContent='To survey '+(n-done); fb[2].textContent='Done '+done;
+  [].forEach.call(fb,function(b){b.setAttribute('aria-pressed',String(b.dataset.f===filter));});
+  var list=S.plots.filter(function(p){ var d=doneCount(p.id)>0;
+    if(filter==='todo'&&d) return false; if(filter==='done'&&!d) return false;
+    return !query||p.name.toLowerCase().indexOf(query)>=0; });
+  $('plist').innerHTML=list.map(function(p){
+    var d=doneCount(p.id), ip=c&&c.plotId===p.id&&c.pts.length, a=area(p.pts);
+    var pill=ip?'<span class="pill inprog">In progress</span>':d?'<span class="pill done">✓ Resurveyed'+(d>1?' ×'+d:'')+'</span>':'<span class="pill todo">To survey</span>';
+    return '<button class="prow" data-open="'+p.id+'"><svg class="ico" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="10" fill="#EEF2EF"/><path d="'+thumb(p.pts,44,44,7)+'" fill="#1E5B3A" fill-opacity=".15" stroke="#1E5B3A" stroke-width="2" stroke-linejoin="round"/></svg>'+
+      '<div style="flex:1;min-width:0"><div class="nm">'+esc(p.name)+'</div><div class="ar">'+fmt(a)+' m² · '+fmt(a/ACRE,2)+' ac</div></div>'+pill+'</button>';
+  }).join('')||(n?'<p style="color:var(--mut);font-size:14px;margin:8px 0">No plots match.</p>':'<p style="color:var(--mut);font-size:14px;margin:4px 0">No plots yet. Tap Add KML/KMZ to load them.</p>');
+  $('plotsMap').classList.toggle('hidden',!showMap||!n);
+  $('mapToggle').setAttribute('aria-pressed',String(showMap));
+  if(showMap&&n) renderPlotsMap();
+}
+function plotsGeo(){
+  return {type:'FeatureCollection',features:S.plots.map(function(p){
+    var st=S.cur&&S.cur.plotId===p.id&&S.cur.pts.length?'prog':doneCount(p.id)?'done':'todo';
+    return {type:'Feature',properties:{id:p.id,st:st},geometry:{type:'Polygon',coordinates:[p.pts.concat([p.pts[0]])]}};})};
+}
+function renderPlotsMap(){
+  if(!window.maplibregl){ $('plotsMap').innerHTML='<p style="padding:16px;color:var(--mut)">The map needs internet the first time this page opens.</p>'; return; }
+  if(pmap){ var s=pmap.getSource('plots'); if(s) s.setData(plotsGeo()); setTimeout(function(){pmap.resize();},30); return; }
+  if(noMap){ $('plotsMap').innerHTML='<p style="padding:16px;color:var(--mut)">The satellite map is not available on this browser.</p>'; return; }
+  try{ pmap=new maplibregl.Map({container:'plotsMap',style:baseStyle(),attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false}); }catch(e){ pmap=null; $('plotsMap').innerHTML='<p style="padding:16px;color:var(--mut)">The satellite map is not available on this browser.</p>'; return; }
+  pmap.touchZoomRotate.disableRotation();
+  pmap.on('load',function(){
+    pmap.addSource('plots',{type:'geojson',data:plotsGeo()});
+    var col=['match',['get','st'],'done','#5FD08A','prog','#4C8DF6','#FFC36B'];
+    pmap.addLayer({id:'pf',type:'fill',source:'plots',paint:{'fill-color':col,'fill-opacity':.3}});
+    pmap.addLayer({id:'pl',type:'line',source:'plots',paint:{'line-color':col,'line-width':2.5}});
+    pmap.on('click','pf',function(e){ openPlot(e.features[0].properties.id); });
+    pmap.on('mouseenter','pf',function(){pmap.getCanvas().style.cursor='pointer';});
+    fitTo(pmap,[].concat.apply([],S.plots.map(function(p){return p.pts;})),40);
+  });
+}
+
+/* ---------------- KML / KMZ ---------------- */
+function readFile(file){
+  return file.arrayBuffer().then(function(buf){
+    var b=new Uint8Array(buf);
+    if(b[0]===0x50&&b[1]===0x4B){
+      if(!window.JSZip) throw new Error('KMZ files need the page to be opened once with internet. Use a KML file, or reconnect and reload.');
+      return JSZip.loadAsync(buf).then(function(z){
+        var f=z.file('doc.kml')||z.file(/\.kml$/i)[0]; if(!f) throw new Error('No KML inside '+file.name+'.');
+        return f.async('string'); });
+    }
+    return new TextDecoder('utf-8').decode(b);
+  });
+}
+function coords(t){ return t.trim().split(/\s+/).map(function(s){var a=s.split(',');return [parseFloat(a[0]),parseFloat(a[1])];}).filter(function(p){return isFinite(p[0])&&isFinite(p[1]);}); }
+function parseKML(txt){
+  var doc=new DOMParser().parseFromString(txt,'application/xml'); if(doc.getElementsByTagName('parsererror').length) throw new Error('This file is not valid KML.');
+  var out=[], pms=doc.getElementsByTagName('Placemark');
+  for(var i=0;i<pms.length;i++){
+    var pm=pms[i], nmEl=pm.getElementsByTagName('name')[0], nm=nmEl?nmEl.textContent.trim():'';
+    var rings=[], polys=pm.getElementsByTagName('Polygon');
+    for(var j=0;j<polys.length;j++){ var ob=polys[j].getElementsByTagName('outerBoundaryIs')[0]; var c=(ob||polys[j]).getElementsByTagName('coordinates')[0]; if(c) rings.push(coords(c.textContent)); }
+    if(!rings.length){ var ls=pm.getElementsByTagName('LineString')[0]; if(ls){ var lc=ls.getElementsByTagName('coordinates')[0]; if(lc) rings.push(coords(lc.textContent)); } }
+    rings=rings.map(function(r){ if(r.length>1&&r[0][0]===r[r.length-1][0]&&r[0][1]===r[r.length-1][1]) r.pop(); return r; }).filter(function(r){return r.length>=3;});
+    rings.forEach(function(r,k){ out.push({name:(nm||'Plot '+(S.plots.length+out.length+1))+(rings.length>1?' ('+(k+1)+')':''),pts:r}); });
+  }
+  return out;
+}
+function addFiles(files){
+  var added=[], errs=[];
+  Promise.all([].map.call(files,function(f){
+    return readFile(f).then(parseKML).then(function(list){
+      list.forEach(function(p){
+        var dup=S.plots.some(function(q){return q.name===p.name&&q.pts[0][0]===p.pts[0][0]&&q.pts[0][1]===p.pts[0][1];});
+        if(!dup){ p.id=uid(); S.plots.push(p); added.push(p); }
+      });
+    }).catch(function(e){errs.push(e.message);});
+  })).then(function(){
+    store(); renderPlots();
+    if(errs.length) alertSheet('Some files could not be read',errs.join(' '));
+    else if(!added.length) toast('No new plots found. They may already be in the list.');
+    else if(added.length===1) openPlot(added[0].id);
+    else toast(added.length+' plots added.');
+  });
+}
+
+/* ---------------- start a survey ---------------- */
+function confirmDiscard(next){
+  if(S.cur&&S.cur.pts.length){ confirmSheet('Discard the unsaved survey?','"'+S.cur.name+'" has '+S.cur.pts.length+' points that are not saved.','Discard and continue',next); }
+  else next();
+}
+function openPlot(id){
+  if(S.cur&&S.cur.plotId===id){ vm='survey'; show('survey'); return; }
+  var p=S.plots.filter(function(q){return q.id===id;})[0]; if(!p) return;
+  confirmDiscard(function(){ newSurvey(p); });
+}
+function newSurvey(p){
+  stopCapture(); walk=null;
+  S.cur={plotId:p?p.id:null,name:p?p.name:'New plot '+(S.saved.length+1),rec:p?p.pts.slice():null,pts:[],started:new Date().toISOString(),mode:'corner'};
+  fitted=false; vm='survey'; store(); show('survey');
+}
+
+/* ---------------- GPS ---------------- */
+function startGPS(){
+  if(gps.watch!=null) return;
+  if(!navigator.geolocation){ gps.err='unsupported'; renderChip(); return; }
+  gps.watch=navigator.geolocation.watchPosition(function(p){
+    gps.fix={lon:p.coords.longitude,lat:p.coords.latitude,acc:p.coords.accuracy,alt:p.coords.altitude,t:Date.now()}; gps.err=null;
+    onFix(gps.fix);
+  },function(e){ gps.err=e.code===1?'denied':'error'; renderChip(); },{enableHighAccuracy:true,maximumAge:0,timeout:30000});
+}
+function restartGPS(){ if(gps.watch!=null){navigator.geolocation.clearWatch(gps.watch); gps.watch=null;} gps.err=null; startGPS(); }
+function quality(){
+  var f=gps.fix; if(gps.err||!f) return {c:'#FF8A80',w:gps.err==='denied'?'Location blocked · tap for help':gps.err?'No GPS · tap for help':'Waiting for GPS',a:'GPS …'};
+  var age=(Date.now()-f.t)/1000; if(age>20) return {c:'#FF8A80',w:'No new reading for '+Math.round(age)+' s',a:'GPS ±'+f.acc.toFixed(1)+' m'};
+  var w=f.acc<=5?'Good':f.acc<=15?'Fair':'Poor';
+  return {c:f.acc<=5?'#5FD08A':f.acc<=15?'#FFC36B':'#FF8A80',w:w+' · updated '+Math.max(0,Math.round(age))+' s ago',a:'GPS ±'+f.acc.toFixed(1)+' m'};
+}
+function renderChip(){ var q=quality(); $('gDot').setAttribute('fill',q.c); $('gDotHalo').setAttribute('fill',q.c); $('gAcc').textContent=q.a; $('gTxt').textContent=q.w; }
+function onFix(f){
+  if(avg) avg.fixes.push(f);
+  if(walk&&!walk.paused) walkFix(f);
+  if(cur==='survey'){ renderChip(); drawMap(); if(follow&&mapReady) map.easeTo({center:[f.lon,f.lat],zoom:Math.max(map.getZoom(),18),duration:600});
+    if(!fitted&&mapReady&&((vm==='survey'&&S.cur&&!S.cur.rec)||(vm==='browse'&&!S.plots.length))){ fitted=true; map.jumpTo({center:[f.lon,f.lat],zoom:18}); } renderFar(); }
+}
+function renderFar(){
+  var b=$('farBanner'), c=S.cur, f=gps.fix;
+  if(vm!=='survey'||!c||!c.rec||!f||walk){ b.classList.add('hidden'); return; }
+  var cen=c.rec.reduce(function(s,p){return [s[0]+p[0]/c.rec.length,s[1]+p[1]/c.rec.length];},[0,0]), d=dist([f.lon,f.lat],cen);
+  if(d>1500){ b.textContent='The plot is '+fmt(d/1000,1)+' km away. Head '+bearing([f.lon,f.lat],cen)+'.'; b.classList.remove('hidden'); } else b.classList.add('hidden');
+}
+
+/* ---------------- corner averaging ---------------- */
+function startCorner(){
+  if(!gps.fix||gps.err){ openGpsHelp(); return; }
+  avg={fixes:[],start:Date.now(),total:S.settings.avg*1000};
+  renderSheet();
+}
+function stopCapture(){ avg=null; }
+function finishCorner(){
+  var fx=avg.fixes.filter(function(x){return x.acc<=100;}); avg=null;
+  if(!fx.length){ toast('No usable GPS readings. Move to open sky and record again.'); renderSheet(); return; }
+  var best=Math.min.apply(0,fx.map(function(x){return x.acc;}));
+  fx=fx.filter(function(x){return x.acc<=2*best+3;});
+  var w=0,lo=0,la=0,ac=0,al=0,an=0;
+  fx.forEach(function(x){var wi=1/(x.acc*x.acc); w+=wi; lo+=x.lon*wi; la+=x.lat*wi; ac+=x.acc; if(x.alt!=null){al+=x.alt;an++;}});
+  var p={lon:lo/w,lat:la/w,acc:Math.round(ac/fx.length*10)/10,n:fx.length,alt:an?Math.round(al/an*10)/10:null,t:new Date().toISOString()};
+  S.cur.pts.push(p); store(); vib(60);
+  var n=S.cur.pts.length;
+  toast(p.acc>15?'Corner '+n+' is only ±'+p.acc+' m. Undo and record it again if you can.':'Corner '+n+' recorded (±'+p.acc+' m, '+p.n+' readings).');
+  renderSurvey();
+}
+
+/* ---------------- walk mode ---------------- */
+function startWalk(){
+  if(!gps.fix||gps.err){ openGpsHelp(); return; }
+  walk={paused:false,skipped:0,start:Date.now(),far:0}; follow=true; $('btnMe').classList.add('blue');
+  if(gps.fix&&Date.now()-gps.fix.t<3000) walkFix(gps.fix);
+  renderSurvey();
+}
+function walkFix(f){
+  var pts=S.cur.pts;
+  if(f.acc>S.settings.walkAcc){ walk.skipped++; renderSheet(); return; }
+  var last=pts[pts.length-1], sp=Math.max(S.settings.spacing,0.6*f.acc);
+  if(last&&dist(ll(last),[f.lon,f.lat])<sp) return;
+  pts.push({lon:f.lon,lat:f.lat,acc:Math.round(f.acc*10)/10,n:1,alt:f.alt==null?null:Math.round(f.alt*10)/10,t:new Date().toISOString(),auto:true});
+  store();
+  var first=ll(walkFirst()), dd=dist(first,[f.lon,f.lat]); walk.far=Math.max(walk.far,dd);
+  if(walk.far>15&&walkPts().length>=8&&dd<=Math.max(6,1.5*S.settings.spacing)){
+    walk=null; vib([80,80,80]); toast('Loop closed. Check the shape, then save.');
+  }
+  renderSurvey();
+}
+function walkPts(){ return S.cur.pts.filter(function(p){return p.auto;}); }
+function walkFirst(){ var w=walkPts(); return w[0]||S.cur.pts[0]; }
+
+/* ---------------- survey rendering ---------------- */
+function savedItem(){ return S.saved.filter(function(v){return v.id===viewId;})[0]; }
+function renderSurvey(){
+  document.querySelector('[data-act=settings]').classList.toggle('hidden',vm!=='survey');
+  if(vm==='survey'&&!S.cur) vm='browse';
+  if(vm==='saved'&&!savedItem()) vm='browse';
+  if(vm!=='survey'){ $('skipWarn').classList.add('hidden'); $('farBanner').classList.add('hidden'); }
+  if(vm==='browse'){
+    var n=S.plots.length, done=S.plots.filter(function(p){return doneCount(p.id)>0;}).length;
+    $('sTitle').textContent='dp_Sazhing Field Monitoring';
+    $('sSub').textContent=n?n+' plots · '+done+' resurveyed':'Satellite map';
+    $('legend').classList.add('hidden');
+    var c0=S.cur&&S.cur.pts.length;
+    $('sheet').innerHTML=sheetHandle()+'<div class="sinfo">'+(n?'Tap a plot on the map to survey it.':'Load record plots from the plot list, or start a survey here.')+'</div>'+
+      (c0?'<button class="cont" data-act="continue"><svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><div><b>Continue '+esc(S.cur.name)+'</b><span>'+S.cur.pts.length+' points recorded · not saved yet</span></div></button>':'')+
+      '<div class="actions"><button class="btn outline flex lg" data-act="home">Plot list</button><button class="btn flex lg" data-act="free">Survey</button></div>';
+    sheetDone(); renderChip(); drawMap(); return;
+  }
+  if(vm==='saved'){
+    var v=savedItem(), pct=v.recArea?(v.area-v.recArea)/v.recArea*100:null;
+    $('sTitle').textContent=v.plot;
+    $('sSub').textContent=v.finding+' · '+smethod(v.pts)+(v.surveyor?' · '+v.surveyor:'')+' · '+new Date(v.saved).toLocaleDateString();
+    $('legend').classList.toggle('hidden',!v.rec);
+    $('sheet').innerHTML=sheetHandle()+'<div class="tiles">'+tile('AREA',fmt(v.area),'m² · '+fmt(v.area/ACRE,2)+' ac')+
+      tile('DIFFERENCE',pct==null?'—':(pct>0?'+':'')+fmt(pct,1)+'%',v.recArea?'record '+fmt(v.recArea)+' m²':'no record')+
+      tile('SHIFT',v.meanShift!=null?fmt(v.meanShift,1)+' m':'—',v.maxShift!=null?'max '+fmt(v.maxShift,1)+' m':v.pts.length+' points')+'</div>'+
+      (v.remarks?'<div class="sinfo">'+esc(v.remarks)+'</div>':'')+
+      '<div class="actions"><button class="btn outline flex lg" data-act="saved">Back to saved</button><button class="btn flex lg" data-act="home">Plot list</button></div>';
+    sheetDone(); renderChip(); drawMap(); return;
+  }
+  var c=S.cur;
+  $('sTitle').textContent=c.name;
+  var ra=c.rec?area(c.rec):null;
+  $('sSub').textContent=walk?'Map follows you while walking':c.rec?'Record '+fmt(ra)+' m² · '+fmt(ra/ACRE,2)+' ac':'No record boundary · free survey';
+  $('legend').classList.toggle('hidden',!c.rec);
+  $('legend').style.bottom=($('sheet').offsetHeight+12)+'px';
+  renderChip(); renderSheet(); drawMap(); renderFar();
+}
+function sheetHandle(){ return '<button class="hbtn" data-act="togglesheet" aria-label="'+(sheetMin?'Show details':'Hide details for a larger map')+'" aria-expanded="'+!sheetMin+'"><span class="handle"></span></button>'; }
+function sheetDone(){ $('sheet').classList.toggle('min',sheetMin); $('legend').style.bottom=($('sheet').offsetHeight+12)+'px'; }
+var ICON={
+  rec:'<svg class="ico" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="5.5" fill="#FF5A4F"/></svg>',
+  recSm:'<svg class="ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4.5" fill="#D93025"/></svg>',
+  walk:'<svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M10 21l2.5-6.5L15 17v4"/><path d="M12.5 14.5L13.5 9l-3.5 1.5-1.5 3.5"/><path d="M13.5 9l2 3.5 3 1"/></svg>',
+  draw:'<svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 18L8 6l11 4-3 9z"/><circle cx="5" cy="18" r="1.8" fill="currentColor"/><circle cx="8" cy="6" r="1.8" fill="currentColor"/><circle cx="19" cy="10" r="1.8" fill="currentColor"/><circle cx="16" cy="19" r="1.8" fill="currentColor"/></svg>',
+  move:'<svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>',
+  undo:'<svg class="ico" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>'
+};
+function tile(k,v,s){return '<div class="tile"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div></div>';}
+function renderSheet(){
+  if(vm!=='survey'||!S.cur) return;
+  var c=S.cur, st=stats(), n=c.pts.length, h=sheetHandle();
+  var sw=$('skipWarn'); sw.classList.toggle('hidden',!(walk&&walk.skipped)); if(walk&&walk.skipped) sw.textContent=walk.skipped+' readings skipped (worse than ±'+S.settings.walkAcc+' m). Common under trees.';
+  var areaTile=tile('AREA',n>=3?fmt(st.area):'—',n>=3?'m² · '+fmt(st.area/ACRE,2)+' ac':'needs 3 points');
+  var third=c.rec?tile('DIFFERENCE',st.pct==null?'—':(st.pct>0?'+':'')+fmt(st.pct,1)+'%',st.shift?'shift '+fmt(st.shift.mean,1)+' m':'record '+fmt(st.recArea)+' m²')
+                 :tile('PERIMETER',n>=2?fmt(st.perim)+' m':'—','no record');
+  if(avg){
+    var left=Math.max(0,Math.ceil((avg.start+avg.total-Date.now())/1000)), frac=Math.min(1,(Date.now()-avg.start)/avg.total);
+    var good=avg.fixes.filter(function(x){return x.acc<=100;}), best=good.length?Math.min.apply(0,good.map(function(x){return x.acc;})):null;
+    h+='<div class="avgcard"><div class="ring"><svg width="76" height="76" viewBox="0 0 76 76" aria-hidden="true"><circle cx="38" cy="38" r="32" fill="none" stroke="#CFE3D7" stroke-width="7"/><circle cx="38" cy="38" r="32" fill="none" stroke="#1E5B3A" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="'+(201*(1-frac)).toFixed(1)+'" transform="rotate(-90 38 38)"/></svg><div class="c"><b>'+left+'</b><span>sec</span></div></div>'+
+       '<div><h3>Averaging corner '+(n+1)+'</h3><p>Hold the phone still at the corner.</p><div class="r">'+avg.fixes.length+' readings'+(best!=null?' · best ±'+best.toFixed(1)+' m':'')+'</div></div></div>';
+    h+='<div class="tiles">'+tile('CORNERS',n,st.acc!=null?'avg ±'+fmt(st.acc,1)+' m':'none yet')+third+areaTile+'</div>';
+    h+='<div class="actions"><button class="btn outline flex lg" data-act="cancelavg">Cancel corner</button><button class="btn save-sm lg" disabled>Save</button></div>';
+  } else if(walk){
+    var sec=Math.floor((Date.now()-walk.start)/1000), wp=walkPts(), f=gps.fix;
+    var toStart=f&&wp.length>1?dist(ll(walkFirst()),[f.lon,f.lat]):null;
+    h+='<div class="rec-head"><div><span class="dot'+(walk.paused?' paused':'')+'"></span>'+(walk.paused?'Walk paused':'Recording walk')+'</div><span class="mono" style="font-size:15px;color:var(--ink2)">'+String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')+'</span></div>';
+    h+='<div class="closecard"><svg class="ico" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1E5B3A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/></svg><div>'+(toStart!=null?'<span class="mono" style="font-weight:600">'+fmt(toStart)+' m</span> to the start point. Recording stops by itself when you close the loop.':'Walk along the boundary. Points are added every '+S.settings.spacing+' m.')+'</div></div>';
+    h+='<div class="tiles">'+tile('POINTS',n,'every '+S.settings.spacing+' m')+tile('WALKED',fmt(pathLen(wp.map(ll),false))+' m','of boundary')+tile('AREA SO FAR',n>=3?fmt(st.area):'—',c.rec?'m² · record '+fmt(st.recArea):'m²')+'</div>';
+    h+='<div class="actions"><button class="btn outline lg" style="width:120px" data-act="pause">'+(walk.paused?'Resume':'Pause')+'</button><button class="btn flex lg" data-act="stopwalk">Stop &amp; review</button></div>';
+  } else {
+    var walkMode=c.mode==='walk', drawMode=c.mode==='draw', cornerMode=!walkMode&&!drawMode;
+    var ptsSub=n<3?'of 3 minimum':(st.acc!=null?'avg ±'+fmt(st.acc,1)+' m':'drawn on map');
+    h+='<div class="tiles">'+areaTile+tile(cornerMode?'CORNERS':'POINTS',n,ptsSub)+third+'</div>';
+    h+='<div class="seg"><button data-act="mode-corner" aria-pressed="'+cornerMode+'">'+ICON.recSm+'Record</button><button data-act="mode-walk" aria-pressed="'+walkMode+'">'+ICON.walk+'Walk</button><button data-act="mode-draw" aria-pressed="'+drawMode+'">'+ICON.draw+'Draw</button></div>';
+    var main=walkMode?'<button class="btn flex lg" data-act="startwalk">'+ICON.walk.replace('width="18" height="18"','width="22" height="22"')+(n?'Continue walk':'Start walk')+'</button>'
+            :drawMode?(n>=3?'<button class="btn flex lg" data-act="tosave">Save</button>':'<button class="btn flex lg" disabled>'+ICON.draw.replace('width="18" height="18"','width="22" height="22"')+'Tap the map</button>')
+            :'<button class="btn flex lg" data-act="record">'+ICON.rec+'Record</button>';
+    var allDrawn=n>0&&c.pts.every(function(p){return p.drawn;});
+    if(!drawMode||!allDrawn||n<3) moveOn=false;
+    h+='<div class="actions"><button class="undo" data-act="undo" aria-label="Undo last point"'+(n?'':' disabled')+'>'+ICON.undo+'</button>'+
+       (drawMode&&n>=3?'<button class="undo" data-act="movetoggle" aria-pressed="'+moveOn+'" aria-label="Move the whole shape"'+(allDrawn?'':' disabled title="Only shapes drawn entirely on the map can be moved"')+'>'+ICON.move+'</button>':'')+main+
+       (n>=3&&!drawMode?'<button class="btn outline save-sm lg" data-act="tosave">Save</button>':'')+'</div>';
+    h+='<div class="hint">'+(walkMode?'Stand at a corner, tap Start walk, then walk along the edge.'
+       :drawMode?(moveOn?'Drag inside the shape to move it into place. Tap the move button again when done.':n<3?'Tap the satellite map at each corner of the plot ('+(3-n)+' more needed). Zoom in for precision.':'Tap to add more points, drag a numbered point to adjust it, or use the move button to shift the whole shape.')
+       :n===0?'Stand on the first corner, then tap Record. Hold still for '+S.settings.avg+' s.':'Walk to corner '+(n+1)+', then tap Record.'+(n>=3?' Tap Save when every corner is done.':''))+'</div>';
+  }
+  $('sheet').innerHTML=h;
+  sheetDone();
+}
+
+/* ---------------- map ---------------- */
+function baseStyle(){
+  var src={sat:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,maxzoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'},
+    roads:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],tileSize:256,maxzoom:19},
+    places:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],tileSize:256,maxzoom:19}};
+  return {version:8,sources:src,layers:[{id:'sat',type:'raster',source:'sat'},
+    {id:'roads',type:'raster',source:'roads',layout:{visibility:'none'}},{id:'places',type:'raster',source:'places',layout:{visibility:'none'}}]};
+}
+function useGoogle(m){
+  if(!GOOGLE_KEY) return;
+  fetch('https://tile.googleapis.com/v1/createSession?key='+GOOGLE_KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapType:'satellite',language:'en-US',region:'BT'})})
+  .then(function(r){if(!r.ok) throw 0; return r.json();}).then(function(j){
+    m.addSource('gsat',{type:'raster',tiles:['https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session='+j.session+'&key='+GOOGLE_KEY],tileSize:256,maxzoom:22,attribution:'© Google'});
+    m.addLayer({id:'gsat',type:'raster',source:'gsat'},'roads');
+  }).catch(function(){});
+}
+function useFallback(){ noMap=true; $('map').classList.add('hidden'); $('mapFallback').classList.remove('hidden'); if(cur==='survey') drawFallback(); }
+function initMap(){
+  if(map||!$('survey').classList.contains('on')) return;
+  if(!window.maplibregl||noMap){ useFallback(); return; }
+  try{
+    map=new maplibregl.Map({container:'map',style:baseStyle(),center:[90.43,27.47],zoom:7,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false,maxZoom:21});
+  }catch(e){ map=null; useFallback(); return; }
+  // if the map has not started after 10 s (no WebGL, blocked library), switch to the grid view
+  setTimeout(function(){ if(!mapReady&&map){ try{map.remove();}catch(e){} map=null; useFallback(); toast('Satellite map could not start on this browser. Using grid view; Record and Walk still work.'); } },10000);
+  map.touchZoomRotate.disableRotation();
+  map.on('dragstart',function(){ follow=false; $('btnMe').classList.remove('blue'); });
+  map.on('error',function(e){ if(e&&e.tile){ tileErr++; if(tileErr>6&&!tileWarned){ tileWarned=true; toast('Satellite imagery is not loading. Surveying still works.'); } } });
+  map.on('load',function(){
+    useGoogle(map);
+    var E={type:'FeatureCollection',features:[]};
+    ['all','rec','sv','close','guide','pts','meacc','me'].forEach(function(s){map.addSource(s,{type:'geojson',data:E});});
+    var col=['match',['get','st'],'done','#5FD08A','prog','#4C8DF6','#FFC36B'];
+    map.addLayer({id:'all-f',type:'fill',source:'all',paint:{'fill-color':col,'fill-opacity':.25}});
+    map.addLayer({id:'all-l',type:'line',source:'all',paint:{'line-color':col,'line-width':2.5}});
+    map.on('click','all-f',function(e){ if(vm==='browse') openPlot(e.features[0].properties.id); });
+    map.addLayer({id:'rec-f',type:'fill',source:'rec',paint:{'fill-color':'#fff','fill-opacity':.1}});
+    map.addLayer({id:'rec-l',type:'line',source:'rec',paint:{'line-color':'#fff','line-width':2.5,'line-dasharray':[3.5,2.5]}});
+    map.addLayer({id:'sv-f',type:'fill',source:'sv',paint:{'fill-color':'#FF7A1A','fill-opacity':.2}});
+    map.addLayer({id:'sv-l',type:'line',source:'sv',layout:{'line-join':'round','line-cap':'round'},paint:{'line-color':'#FF7A1A','line-width':4}});
+    map.addLayer({id:'close',type:'line',source:'close',paint:{'line-color':'#FF7A1A','line-width':2,'line-dasharray':[2,2.5],'line-opacity':.85}});
+    map.addLayer({id:'guide',type:'line',source:'guide',paint:{'line-color':'#fff','line-width':1.5,'line-dasharray':[1,2.5]}});
+    map.addLayer({id:'pts',type:'circle',source:'pts',paint:{'circle-radius':['case',['get','auto'],3,6],'circle-color':['case',['get','auto'],'#fff','#FF7A1A'],'circle-stroke-color':'#fff','circle-stroke-width':['case',['get','auto'],0,2.5]}});
+    map.addLayer({id:'meacc',type:'fill',source:'meacc',paint:{'fill-color':'#4C8DF6','fill-opacity':.18}});
+    map.addLayer({id:'meacc-l',type:'line',source:'meacc',paint:{'line-color':'#4C8DF6','line-opacity':.6,'line-width':1.5}});
+    map.addLayer({id:'me',type:'circle',source:'me',paint:{'circle-radius':9,'circle-color':'#1A73E8','circle-stroke-color':'#fff','circle-stroke-width':3}});
+    map.on('click',function(e){
+      if(vm!=='survey'||!S.cur||S.cur.mode!=='draw'||avg||walk||moveOn) return;
+      S.cur.pts.push({lon:e.lngLat.lng,lat:e.lngLat.lat,acc:null,n:0,alt:null,t:new Date().toISOString(),drawn:true});
+      store(); vib(20); renderSurvey();
+    });
+    function mvStart(e){
+      if(!(moveOn&&vm==='survey'&&S.cur&&S.cur.mode==='draw')) return;
+      if(e.points&&e.points.length!==1) return;
+      e.preventDefault(); mv={start:e.lngLat,orig:S.cur.pts.map(function(p){return [p.lon,p.lat];})}; map.dragPan.disable();
+    }
+    function mvMove(e){
+      if(!mv) return;
+      var dx=e.lngLat.lng-mv.start.lng, dy=e.lngLat.lat-mv.start.lat;
+      S.cur.pts.forEach(function(p,i){ p.lon=mv.orig[i][0]+dx; p.lat=mv.orig[i][1]+dy; });
+      drawMap(); renderSheet();
+    }
+    function mvEnd(){
+      if(!mv) return; mv=null; map.dragPan.enable();
+      var t=new Date().toISOString(); S.cur.pts.forEach(function(p){p.t=t;}); store(); vib(30); renderSurvey();
+    }
+    map.on('mousedown','sv-f',mvStart); map.on('touchstart','sv-f',mvStart);
+    map.on('mousemove',mvMove); map.on('touchmove',mvMove);
+    map.on('mouseup',mvEnd); map.on('touchend',mvEnd); map.on('touchcancel',mvEnd);
+    map.on('mouseenter','sv-f',function(){ if(moveOn) map.getCanvas().style.cursor='move'; });
+    map.on('mouseleave','sv-f',function(){ map.getCanvas().style.cursor=''; });
+    mapReady=true; drawMap(); fitPlot();
+  });
+}
+function fitTo(m,list,pad){ if(!list.length) return; var b=new maplibregl.LngLatBounds(list[0],list[0]); list.forEach(function(p){b.extend(p);}); m.fitBounds(b,{padding:pad,maxZoom:19,duration:0}); }
+function geo(){
+  if(vm==='saved'){ var v=savedItem(); return v?{rec:v.rec,pts:v.pts,live:false}:{rec:null,pts:[],live:false}; }
+  if(vm==='survey'&&S.cur) return {rec:S.cur.rec,pts:S.cur.pts,live:true};
+  return {rec:null,pts:[],live:false};
+}
+function fitPlot(){
+  if(!mapReady) return;
+  var g=geo(), list=(g.rec||[]).concat(g.pts.map(ll));
+  if(vm==='browse') list=[].concat.apply([],S.plots.map(function(p){return p.pts;}));
+  if(!list.length&&gps.fix) list=[[gps.fix.lon,gps.fix.lat]];
+  if(!list.length) return;
+  fitted=true; follow=false; $('btnMe').classList.remove('blue');
+  var sh=$('sheet').offsetHeight||300;
+  if(list.length===1) map.jumpTo({center:list[0],zoom:18});
+  else { var b=new maplibregl.LngLatBounds(list[0],list[0]); list.forEach(function(p){b.extend(p);}); map.fitBounds(b,{padding:{top:150,bottom:sh+30,left:40,right:80},maxZoom:19,duration:300}); }
+}
+function fc(geom){return {type:'FeatureCollection',features:geom?[{type:'Feature',properties:{},geometry:geom}]:[]};}
+function drawMap(){
+  if(!window.maplibregl||noMap){ drawFallback(); return; }
+  if(!mapReady) return;
+  var c=geo(), ring=c.pts.map(ll), f=gps.fix;
+  map.getSource('all').setData(vm==='browse'?plotsGeo():{type:'FeatureCollection',features:[]});
+  map.getSource('rec').setData(fc(c.rec?{type:'Polygon',coordinates:[c.rec.concat([c.rec[0]])]}:null));
+  map.getSource('sv').setData(fc(ring.length>=3?{type:'Polygon',coordinates:[ring.concat([ring[0]])]}:ring.length===2?{type:'LineString',coordinates:ring}:null));
+  map.getSource('close').setData(fc(ring.length>=3?{type:'LineString',coordinates:[ring[ring.length-1],ring[0]]}:null));
+  map.getSource('guide').setData(fc(c.live&&S.cur.mode!=='draw'&&ring.length&&f&&!walk?{type:'LineString',coordinates:[ring[ring.length-1],[f.lon,f.lat]]}:null));
+  map.getSource('pts').setData({type:'FeatureCollection',features:c.pts.map(function(p){return {type:'Feature',properties:{auto:!!p.auto},geometry:{type:'Point',coordinates:ll(p)}};})});
+  map.getSource('meacc').setData(fc(f?{type:'Polygon',coordinates:[circle(f.lon,f.lat,f.acc)]}:null));
+  map.getSource('me').setData(fc(f?{type:'Point',coordinates:[f.lon,f.lat]}:null));
+  // numbered corner labels
+  if(mv&&markers.length===c.pts.filter(function(p){return !p.auto;}).length){ var j=0; c.pts.forEach(function(p){ if(!p.auto&&markers[j]) markers[j++].setLngLat(ll(p)); }); return; }
+  markers.forEach(function(m){m.remove();}); markers=[];
+  var k=0, canDrag=c.live&&S.cur.mode==='draw'&&!walk&&!avg&&!moveOn&&!mv;
+  c.pts.forEach(function(p){ if(p.auto) return; k++; if(k>60) return;
+    var el=document.createElement('div'); el.className='vnum'+(p.drawn&&canDrag?' drag':''); el.textContent=k;
+    if(p.drawn){
+      var mk=new maplibregl.Marker({element:el,draggable:canDrag}).setLngLat(ll(p)).addTo(map);
+      if(canDrag) mk.on('dragend',function(){ var q=mk.getLngLat(); p.lon=q.lng; p.lat=q.lat; p.t=new Date().toISOString(); store(); renderSurvey(); });
+      markers.push(mk);
+    } else markers.push(new maplibregl.Marker({element:el,offset:[0,-18]}).setLngLat(ll(p)).addTo(map));
+  });
+}
+function drawFallback(){
+  var svg=$('mapFallback'), c=geo(), f=gps.fix, W=svg.clientWidth||390, H=svg.clientHeight||700, sh=$('sheet').offsetHeight||300;
+  var all=(c.rec||[]).concat(c.pts.map(ll)); if(vm==='browse') S.plots.forEach(function(p){ all=all.concat(p.pts); }); if(f) all.push([f.lon,f.lat]);
+  if(!all.length){ svg.innerHTML='<text x="20" y="200" fill="#fff" font-size="14">Waiting for GPS…</text>'; return; }
+  var pr=projector(all), q=all.map(pr), xs=q.map(function(p){return p[0];}), ys=q.map(function(p){return p[1];});
+  var x0=Math.min.apply(0,xs),x1=Math.max.apply(0,xs),y0=Math.min.apply(0,ys),y1=Math.max.apply(0,ys);
+  var span=Math.max(x1-x0,y1-y0,30), top=150, availH=Math.max(120,H-top-sh-30), s=Math.min((W-80)/span,availH/span);
+  var cx=(x0+x1)/2, cy=(y0+y1)/2, P=function(p){var m=pr(p);return [(W/2+(m[0]-cx)*s).toFixed(1),(top+availH/2-(m[1]-cy)*s).toFixed(1)];};
+  var poly=function(r){return r.map(function(p){return P(p).join(',');}).join(' ');};
+  var g='<rect width="100%" height="100%" fill="#2B3826"/>';
+  var step=10*s; if(!(s>0)||!isFinite(s)) return; var gm=10; while(step<12){ step*=5; gm*=5; } for(var gx=0;gx<W;gx+=step) g+='<line x1="'+gx+'" y1="0" x2="'+gx+'" y2="'+H+'" stroke="#3A4A34" stroke-width="1"/>';
+  for(var gy=0;gy<H;gy+=step) g+='<line x1="0" y1="'+gy+'" x2="'+W+'" y2="'+gy+'" stroke="#3A4A34" stroke-width="1"/>';
+  if(vm==='browse') S.plots.forEach(function(p){ var col=S.cur&&S.cur.plotId===p.id&&S.cur.pts.length?'#4C8DF6':doneCount(p.id)?'#5FD08A':'#FFC36B'; g+='<polygon points="'+poly(p.pts)+'" fill="'+col+'" fill-opacity=".25" stroke="'+col+'" stroke-width="2.5"/>'; });
+  if(c.rec) g+='<polygon points="'+poly(c.rec)+'" fill="#fff" fill-opacity=".1" stroke="#fff" stroke-width="2.5" stroke-dasharray="9 7"/>';
+  var r=c.pts.map(ll); if(r.length>=2) g+='<polygon points="'+poly(r)+'" fill="#FF7A1A" fill-opacity=".2" stroke="#FF7A1A" stroke-width="4" stroke-linejoin="round"/>';
+  r.forEach(function(p){var a=P(p); g+='<circle cx="'+a[0]+'" cy="'+a[1]+'" r="6" fill="#FF7A1A" stroke="#fff" stroke-width="2.5"/>';});
+  if(f){ var a=P([f.lon,f.lat]); g+='<circle cx="'+a[0]+'" cy="'+a[1]+'" r="'+Math.max(10,f.acc*s)+'" fill="#4C8DF6" fill-opacity=".18" stroke="#4C8DF6" stroke-opacity=".6"/><circle cx="'+a[0]+'" cy="'+a[1]+'" r="9" fill="#1A73E8" stroke="#fff" stroke-width="3"/>'; }
+  g+='<text x="'+(W-14)+'" y="'+(H-sh-20)+'" text-anchor="end" fill="#fff" font-size="11" font-weight="600">Grid '+gm+' m · satellite map not loaded</text>';
+  svg.innerHTML=g;
+}
+
+/* ---------------- save screen ---------------- */
+function renderSave(){
+  var c=S.cur, st=stats(), n=c.pts.length;
+  $('svSub').textContent=c.name+' · '+n+' points · '+(st.acc!=null?'avg ±'+fmt(st.acc,1)+' m':'drawn on map');
+  var both=(c.rec||[]).concat(st.ring), pr=both.length?projector(both):null;
+  var pathOf=function(r){ if(!r||r.length<3) return ''; var q=r.map(pr),xs=[],ys=[]; both.map(pr).forEach(function(p){xs.push(p[0]);ys.push(p[1]);});
+    var x0=Math.min.apply(0,xs),x1=Math.max.apply(0,xs),y0=Math.min.apply(0,ys),y1=Math.max.apply(0,ys),s=Math.min(90/((x1-x0)||1),108/((y1-y0)||1)),ox=(110-(x1-x0)*s)/2,oy=(128-(y1-y0)*s)/2;
+    return 'M'+q.map(function(p){return ((p[0]-x0)*s+ox).toFixed(1)+' '+((y1-p[1])*s+oy).toFixed(1);}).join(' L')+' Z'; };
+  var badge='<div class="badge '+diffClass(st.pct)+'">'+(st.pct!=null&&Math.abs(st.pct)<=5?'<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>':'')+diffWords(st.pct)+'</div>';
+  $('svRes').innerHTML='<div class="res-top"><svg width="110" height="128" viewBox="0 0 110 128" aria-hidden="true" style="flex-shrink:0"><rect width="110" height="128" fill="#2E3A28"/>'+
+    (c.rec?'<path d="'+pathOf(c.rec)+'" fill="#fff" fill-opacity=".1" stroke="#fff" stroke-width="1.8" stroke-dasharray="5 4"/>':'')+
+    '<path d="'+pathOf(st.ring)+'" fill="#FF7A1A" fill-opacity=".25" stroke="#FF7A1A" stroke-width="2.5" stroke-linejoin="round"/></svg>'+
+    '<div class="info"><div class="k">RESURVEYED AREA</div><div class="big">'+fmt(st.area)+' m²</div><div class="sm">'+fmt(st.area/ACRE,2)+' ac · '+fmt(st.area/ACRE*100,1)+' decimals</div>'+badge+'</div></div>'+
+    (c.rec?'<div class="res-row"><div><div class="k">RECORD</div><div class="v">'+fmt(st.recArea)+' m²</div></div><div><div class="k">DIFFERENCE</div><div class="v">'+(st.diff>0?'+':'')+fmt(st.diff)+' · '+(st.pct>0?'+':'')+fmt(st.pct,1)+'%</div></div><div><div class="k">SHIFT</div><div class="v">'+(st.shift?fmt(st.shift.mean,1)+' / '+fmt(st.shift.max,1)+' m':'—')+'</div></div></div>'
+           :'<div class="res-row"><div><div class="k">PERIMETER</div><div class="v">'+fmt(st.perim)+' m</div></div><div><div class="k">POINTS</div><div class="v">'+n+'</div></div><div><div class="k">AVG GPS</div><div class="v">'+(st.acc!=null?'±'+fmt(st.acc,1)+' m':'drawn')+'</div></div></div>');
+  $('fName').value=c.name; $('fSurv').value=S.surveyor||'';
+  $('finds').innerHTML=FINDINGS.map(function(f,i){ var on=form.finding===f;
+    return '<button data-find="'+i+'" aria-pressed="'+on+'"'+(i===4?' class="wide"':'')+'>'+(on?'<svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>':'')+esc(f)+'</button>'; }).join('');
+  $('photoBox').classList.toggle('hidden',!form.photo); if(form.photo) $('photoImg').src=form.photo;
+  $('camBtn').classList.toggle('has',!!form.photo);
+}
+function doSave(){
+  var c=S.cur, st=stats();
+  if(!form.finding){ toast('Choose a ground finding first.'); return; }
+  var name=$('fName').value.trim()||c.name; S.surveyor=$('fSurv').value.trim();
+  S.saved.unshift({id:uid(),plotId:c.plotId,plot:name,recName:c.rec?(S.plots.filter(function(p){return p.id===c.plotId;})[0]||{}).name||c.name:'',rec:c.rec,pts:c.pts,
+    area:st.area,recArea:st.recArea,meanShift:st.shift?st.shift.mean:null,maxShift:st.shift?st.shift.max:null,avgAcc:st.acc,
+    surveyor:S.surveyor,finding:form.finding,remarks:$('fRem').value.trim(),photo:form.photo,started:c.started,saved:new Date().toISOString()});
+  S.cur=null; walk=null; avg=null; moveOn=false; form={finding:'',photo:null}; $('fRem').value='';
+  store(); vm='browse'; show('survey'); toast('Resurvey saved: '+name+'.');
+}
+function takePhoto(file){
+  var img=new Image(), url=URL.createObjectURL(file);
+  img.onload=function(){ var m=1024, s=Math.min(1,m/Math.max(img.width,img.height)), cv=document.createElement('canvas');
+    cv.width=Math.round(img.width*s); cv.height=Math.round(img.height*s); cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+    form.photo=cv.toDataURL('image/jpeg',.65); URL.revokeObjectURL(url); renderSave(); };
+  img.onerror=function(){ toast('That photo could not be read.'); };
+  img.src=url;
+}
+
+/* ---------------- saved screen ---------------- */
+function renderSaved(){
+  $('sdSub').textContent=S.saved.length?S.saved.length+' on this phone':'Nothing saved yet';
+  $('dlBox').classList.toggle('hidden',!S.saved.length);
+  $('sdList').innerHTML=S.saved.length?S.saved.map(function(v){
+    var pct=v.recArea?(v.area-v.recArea)/v.recArea*100:null;
+    return '<div class="card"><button class="cardopen" data-view="'+v.id+'" aria-label="Show '+esc(v.plot)+' on the map"><svg class="ico" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><rect width="44" height="44" rx="10" fill="#EEF2EF"/><path d="'+thumb(v.pts.map(ll),44,44,7)+'" fill="#FF7A1A" fill-opacity=".2" stroke="#FF7A1A" stroke-width="2" stroke-linejoin="round"/></svg>'+
+      '<div class="t"><b>'+esc(v.plot)+'</b><div>'+fmt(v.area)+' m²'+(pct!=null?' · '+(pct>0?'+':'')+fmt(pct,1)+'% vs record':'')+'</div><div>'+esc(v.finding)+(v.surveyor?' · '+esc(v.surveyor):'')+' · '+new Date(v.saved).toLocaleDateString()+(v.photo?' · photo':'')+'</div></div></button>'+
+      '<button class="del" data-del="'+v.id+'">'+(delArm===v.id?'Tap again to delete':'Delete')+'</button></div>';
+  }).join(''):'<div class="empty"><h2>No resurveys yet</h2><p>Saved resurveys appear here, ready to download as KML and CSV.</p></div>';
+}
+
+/* ---------------- exports ---------------- */
+function pmethod(p){return p.drawn?'drawn on map':p.auto?'walked':'corner averaged';}
+function smethod(pts){var m=[];pts.forEach(function(p){var x=p.drawn?'draw':p.auto?'walk':'record';if(m.indexOf(x)<0)m.push(x);});return m.join(' + ');}
+function stamp(){var d=new Date(),p=function(n){return String(n).padStart(2,'0');};return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes());}
+function xesc(t){return esc(t);}
+function safe(t){return String(t).replace(/[^\w.-]+/g,'_').slice(0,60)||'plot';}
+function ringKML(r){return r.concat([r[0]]).map(function(p){return p[0].toFixed(8)+','+p[1].toFixed(8)+',0';}).join(' ');}
+function buildKML(withPhotos){
+  var k=['<?xml version="1.0" encoding="UTF-8"?>','<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>dp_Sazhing resurveys '+stamp()+'</name>',
+    '<Style id="resurvey"><LineStyle><color>ff1a7aff</color><width>3</width></LineStyle><PolyStyle><color>401a7aff</color></PolyStyle></Style>',
+    '<Style id="record"><LineStyle><color>ff00d7ff</color><width>2</width></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>',
+    '<Style id="corner"><IconStyle><scale>0.6</scale></IconStyle></Style>','<Folder><name>Resurveyed plots</name>'];
+  S.saved.forEach(function(v){
+    var pct=v.recArea?(v.area-v.recArea)/v.recArea*100:null;
+    var d={resurvey_area_m2:v.area.toFixed(1),resurvey_area_acre:(v.area/ACRE).toFixed(4),resurvey_area_decimal:(v.area/ACRE*100).toFixed(2),
+      record_area_m2:v.recArea!=null?v.recArea.toFixed(1):'',area_diff_m2:v.recArea!=null?(v.area-v.recArea).toFixed(1):'',area_diff_pct:pct!=null?pct.toFixed(2):'',
+      mean_boundary_shift_m:v.meanShift!=null?v.meanShift.toFixed(2):'',max_boundary_shift_m:v.maxShift!=null?v.maxShift.toFixed(2):'',
+      corners:v.pts.length,survey_method:smethod(v.pts),avg_gps_accuracy_m:v.avgAcc!=null?v.avgAcc.toFixed(1):'',finding:v.finding,remarks:v.remarks,surveyor:v.surveyor,survey_date:v.saved};
+    var desc=withPhotos&&v.photo?'<description><![CDATA[<img src="photos/'+safe(v.plot)+'_'+v.id+'.jpg" width="400">]]></description>':'';
+    k.push('<Placemark><name>'+xesc(v.plot)+'</name>'+desc+'<styleUrl>#resurvey</styleUrl><ExtendedData>'+Object.keys(d).map(function(x){return '<Data name="'+x+'"><value>'+xesc(d[x])+'</value></Data>';}).join('')+'</ExtendedData><Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>'+ringKML(v.pts.map(ll))+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>');
+  });
+  k.push('</Folder><Folder><name>Corner points</name><visibility>0</visibility>');
+  S.saved.forEach(function(v){ v.pts.forEach(function(p,i){ k.push('<Placemark><name>'+xesc(v.plot)+' #'+(i+1)+'</name><visibility>0</visibility><styleUrl>#corner</styleUrl><ExtendedData><Data name="method"><value>'+pmethod(p)+'</value></Data><Data name="gps_accuracy_m"><value>'+(p.acc==null?'':p.acc)+'</value></Data><Data name="readings"><value>'+p.n+'</value></Data><Data name="time"><value>'+p.t+'</value></Data></ExtendedData><Point><coordinates>'+p.lon.toFixed(8)+','+p.lat.toFixed(8)+',0</coordinates></Point></Placemark>'); }); });
+  k.push('</Folder><Folder><name>Record plots</name>');
+  S.saved.forEach(function(v){ if(v.rec&&v.rec.length>=3) k.push('<Placemark><name>'+xesc(v.recName||v.plot)+' (record)</name><styleUrl>#record</styleUrl><Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>'+ringKML(v.rec)+'</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>'); });
+  k.push('</Folder></Document></kml>'); return k.join('\n');
+}
+function csv(rows){return '\ufeff'+rows.map(function(r){return r.map(function(c){c=c==null?'':String(c); return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(',');}).join('\r\n');}
+function summaryCSV(){
+  var rows=[['plot','record_plot','surveyor','finding','survey_date','resurvey_area_m2','resurvey_area_acre','resurvey_area_decimal','record_area_m2','area_diff_m2','area_diff_pct','mean_boundary_shift_m','max_boundary_shift_m','corners','survey_method','avg_gps_accuracy_m','photo','remarks']];
+  S.saved.forEach(function(v){ var pct=v.recArea?(v.area-v.recArea)/v.recArea*100:null;
+    rows.push([v.plot,v.recName,v.surveyor,v.finding,v.saved,v.area.toFixed(1),(v.area/ACRE).toFixed(4),(v.area/ACRE*100).toFixed(2),v.recArea!=null?v.recArea.toFixed(1):'',v.recArea!=null?(v.area-v.recArea).toFixed(1):'',pct!=null?pct.toFixed(2):'',
+      v.meanShift!=null?v.meanShift.toFixed(2):'',v.maxShift!=null?v.maxShift.toFixed(2):'',v.pts.length,smethod(v.pts),v.avgAcc!=null?v.avgAcc.toFixed(1):'',v.photo?'photos/'+safe(v.plot)+'_'+v.id+'.jpg':'',v.remarks]); });
+  return csv(rows);
+}
+function cornersCSV(){
+  var rows=[['plot','point','method','latitude','longitude','gps_accuracy_m','readings','altitude_m','time']];
+  S.saved.forEach(function(v){ v.pts.forEach(function(p,i){ rows.push([v.plot,i+1,pmethod(p),p.lat.toFixed(8),p.lon.toFixed(8),p.acc,p.n||'',p.alt==null?'':p.alt,p.t]); }); });
+  return csv(rows);
+}
+function download(name,blob){ var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){URL.revokeObjectURL(a.href); a.remove();},2000); }
+function dl(kind){
+  var s=stamp();
+  if(kind==='kml') download('dp_sazhing_resurveys_'+s+'.kml',new Blob([buildKML(false)],{type:'application/vnd.google-earth.kml+xml'}));
+  if(kind==='sum') download('dp_sazhing_summary_'+s+'.csv',new Blob([summaryCSV()],{type:'text/csv'}));
+  if(kind==='cor') download('dp_sazhing_corners_'+s+'.csv',new Blob([cornersCSV()],{type:'text/csv'}));
+  if(kind==='zip'){
+    if(!window.JSZip){ toast('ZIP needs the page opened once with internet. Download the files one by one instead.'); return; }
+    var z=new JSZip(); z.file('dp_sazhing_resurveys_'+s+'.kml',buildKML(true)); z.file('dp_sazhing_summary_'+s+'.csv',summaryCSV()); z.file('dp_sazhing_corners_'+s+'.csv',cornersCSV());
+    S.saved.forEach(function(v){ if(v.photo) z.file('photos/'+safe(v.plot)+'_'+v.id+'.jpg',v.photo.split(',')[1],{base64:true}); });
+    z.generateAsync({type:'blob'}).then(function(b){download('dp_sazhing_'+s+'.zip',b);});
+  }
+}
+
+/* ---------------- overlays & toast ---------------- */
+var tt=null;
+function toast(m){ var t=$('toast'); t.textContent=m; t.classList.toggle('up',cur==='survey'); t.classList.add('on'); clearTimeout(tt); tt=setTimeout(function(){t.classList.remove('on');},3800); }
+function openOv(html){ $('ovs').innerHTML='<div class="handle"></div>'+html; $('ov').classList.add('on'); var b=$('ovs').querySelector('button,select'); if(b) b.focus(); }
+function closeOv(){ $('ov').classList.remove('on'); }
+function alertSheet(t,m){ openOv('<h2>'+esc(t)+'</h2><p>'+esc(m)+'</p><button class="btn" data-act="closeov">OK</button>'); }
+var confirmCb=null;
+function confirmSheet(t,m,yes,cb){ confirmCb=cb; openOv('<h2>'+esc(t)+'</h2><p>'+esc(m)+'</p><div class="actions"><button class="btn outline flex" data-act="closeov">Cancel</button><button class="btn flex" style="background:#A3261B" data-act="confirmyes">'+esc(yes)+'</button></div>'); }
+function opt(v,cur,l){return '<option value="'+v+'"'+(String(v)===String(cur)?' selected':'')+'>'+l+'</option>';}
+function openSettings(){
+  var s=S.settings;
+  openOv('<h2>Survey settings</h2>'+
+    '<div class="field"><label for="setAvg">Time to average each corner</label><select id="setAvg">'+opt(5,s.avg,'5 seconds (quick)')+opt(10,s.avg,'10 seconds (recommended)')+opt(20,s.avg,'20 seconds')+opt(30,s.avg,'30 seconds (most steady)')+'</select></div>'+
+    '<div class="field"><label for="setSp">Walk: add a point every</label><select id="setSp">'+opt(2,s.spacing,'2 m')+opt(3,s.spacing,'3 m (recommended)')+opt(5,s.spacing,'5 m')+opt(10,s.spacing,'10 m (large plots)')+'</select></div>'+
+    '<div class="field"><label for="setAcc">Walk: skip readings worse than</label><select id="setAcc">'+opt(10,s.walkAcc,'±10 m (strict)')+opt(15,s.walkAcc,'±15 m (recommended)')+opt(25,s.walkAcc,'±25 m (under trees)')+'</select></div>'+
+    '<button class="btn" data-act="closeov">Done</button>'+
+    (S.cur&&S.cur.pts.length?'<button class="linkbtn danger" data-act="clearpts">Clear all points in this survey</button>':''));
+  ['setAvg','setSp','setAcc'].forEach(function(id){ $(id).onchange=function(){ S.settings.avg=+$('setAvg').value; S.settings.spacing=+$('setSp').value; S.settings.walkAcc=+$('setAcc').value; store(); renderSheet(); }; });
+}
+function openGpsHelp(){
+  var ua=navigator.userAgent, ios=/iPhone|iPad|iPod/.test(ua), inapp=/FBAN|FBAV|Instagram|Line\/|WhatsApp|Telegram|wv\)/i.test(ua), framed=window.top!==window.self, q=quality();
+  var steps=inapp?'<ol><li>This page is open inside another app, which often blocks GPS.</li><li>Tap the ⋮ or share menu and choose <b>Open in Chrome</b> (or Safari).</li></ol>'
+    :framed?'<p>This page is embedded in another page, which can block location. Open it directly from its own address.</p>'
+    :ios?'<ol><li>Open <b>Settings → Privacy &amp; Security → Location Services</b> and turn it on.</li><li>Scroll to <b>Safari Websites</b> and choose <b>While Using the App</b>, with Precise Location on.</li><li>Come back and tap Try again.</li></ol>'
+    :'<ol><li>Pull down the quick settings and turn <b>Location</b> on.</li><li>In Chrome, tap the icon left of the address, then <b>Permissions → Location → Allow</b>.</li><li>Come back and tap Try again.</li></ol>';
+  openOv('<h2>GPS: '+esc(q.w)+'</h2>'+(gps.fix&&!gps.err?'<p>Current accuracy is ±'+gps.fix.acc.toFixed(1)+' m. Accuracy improves in open sky, away from walls and tall trees. Wait 30–60 seconds after opening for the best fix.</p>':steps)+
+    '<div class="actions"><button class="btn outline flex" data-act="reload">Reload page</button><button class="btn flex" data-act="retrygps">Try again</button></div>');
+}
+
+/* ---------------- screen wake lock ---------------- */
+function keepAwake(on){
+  if(!('wakeLock' in navigator)) return;
+  if(on&&!wake) navigator.wakeLock.request('screen').then(function(w){wake=w; w.addEventListener('release',function(){wake=null;});}).catch(function(){});
+  if(!on&&wake){ wake.release().catch(function(){}); wake=null; }
+}
+document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&cur==='survey') keepAwake(true); });
+
+/* ---------------- events ---------------- */
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-act],[data-open],[data-f],[data-find],[data-del],[data-view]'); if(!t) return;
+  if(t.dataset.view){ viewId=t.dataset.view; vm='saved'; fitted=false; show('survey'); return; }
+  if(t.dataset.open){ openPlot(t.dataset.open); return; }
+  if(t.dataset.f){ filter=t.dataset.f; renderPlots(); return; }
+  if(t.dataset.find){ form.finding=FINDINGS[+t.dataset.find]; S.cur.name=$('fName').value; renderSave(); return; }
+  if(t.dataset.del){ var id=t.dataset.del; if(delArm===id){ S.saved=S.saved.filter(function(v){return v.id!==id;}); delArm=null; store(); toast('Resurvey deleted.'); } else { delArm=id; setTimeout(function(){ if(delArm===id){delArm=null; if(cur==='saved') renderSaved();} },3000); } renderSaved(); return; }
+  switch(t.dataset.act){
+    case 'addkml': $('file').click(); break;
+    case 'free': confirmDiscard(function(){ newSurvey(null); }); break;
+    case 'continue': vm='survey'; show('survey'); break;
+    case 'mainmap': vm='browse'; show('survey'); break;
+    case 'togglesheet': sheetMin=!sheetMin; renderSurvey(); break;
+    case 'saved': show('saved'); break;
+    case 'home': show('plots'); break;
+    case 'clearplots': confirmSheet('Clear the plot list?','The '+S.plots.length+' record plots will be removed from this phone. Saved resurveys are kept.','Clear list',function(){ S.plots=[]; store(); renderPlots(); }); break;
+    case 'back': if(vm==='saved'){ show('saved'); break; } if(vm==='browse'){ show('plots'); break; } if(avg){ avg=null; } if(walk){ walk=null; } vm='browse'; show('survey'); break;
+    case 'settings': openSettings(); break;
+    case 'gpshelp': openGpsHelp(); break;
+    case 'layers': labels=!labels; t.classList.toggle('active',labels); t.setAttribute('aria-pressed',String(labels));
+      if(mapReady){ map.setLayoutProperty('roads','visibility',labels?'visible':'none'); map.setLayoutProperty('places','visibility',labels?'visible':'none'); } break;
+    case 'me': if(!gps.fix){ openGpsHelp(); break; } follow=true; $('btnMe').classList.add('blue'); if(mapReady) map.easeTo({center:[gps.fix.lon,gps.fix.lat],zoom:Math.max(map.getZoom(),18)}); break;
+    case 'fit': fitPlot(); break;
+    case 'record': startCorner(); break;
+    case 'cancelavg': avg=null; renderSheet(); break;
+    case 'mode-corner': moveOn=false; S.cur.mode='corner'; store(); renderSurvey(); break;
+    case 'mode-walk': moveOn=false; S.cur.mode='walk'; store(); renderSurvey(); break;
+    case 'movetoggle': moveOn=!moveOn; if(moveOn){ follow=false; $('btnMe').classList.remove('blue'); toast('Drag inside the shape to move it.'); } renderSurvey(); break;
+    case 'mode-draw': S.cur.mode='draw'; follow=false; $('btnMe').classList.remove('blue'); store(); renderSurvey();
+      if(!mapReady) toast('Draw needs the satellite map. Open the app with signal once to load it.'); else toast('Tap the map at each corner of the plot.'); break;
+    case 'startwalk': startWalk(); break;
+    case 'pause': walk.paused=!walk.paused; renderSheet(); break;
+    case 'stopwalk': walk=null; if(S.cur.pts.length>=3) show('save'); else { toast('At least 3 points are needed to save.'); renderSurvey(); } break;
+    case 'undo': if(S.cur.pts.length){ S.cur.pts.pop(); store(); renderSurvey(); toast('Last point removed.'); } break;
+    case 'tosave': show('save'); break;
+    case 'saveback': S.cur.name=$('fName').value.trim()||S.cur.name; S.surveyor=$('fSurv').value.trim(); store(); vm='survey'; show('survey'); break;
+    case 'dosave': doSave(); break;
+    case 'photo': $('photoIn').click(); break;
+    case 'rmphoto': form.photo=null; renderSave(); break;
+    case 'dlzip': dl('zip'); break; case 'dlkml': dl('kml'); break; case 'dlsum': dl('sum'); break; case 'dlcor': dl('cor'); break;
+    case 'closeov': closeOv(); break;
+    case 'confirmyes': closeOv(); if(confirmCb){ var cb=confirmCb; confirmCb=null; cb(); } break;
+    case 'clearpts': closeOv(); confirmSheet('Clear all points?','All '+S.cur.pts.length+' points in this survey will be removed.','Clear points',function(){ S.cur.pts=[]; walk=null; store(); renderSurvey(); }); break;
+    case 'retrygps': closeOv(); restartGPS(); break;
+    case 'reload': location.reload(); break;
+    case 'maptoggle': break;
+  }
+});
+$('mapToggle').addEventListener('click',function(){ showMap=!showMap; renderPlots(); });
+$('ov').addEventListener('click',function(e){ if(e.target===$('ov')) closeOv(); });
+$('file').addEventListener('change',function(){ if(this.files.length) addFiles(this.files); this.value=''; });
+$('photoIn').addEventListener('change',function(){ if(this.files[0]) takePhoto(this.files[0]); this.value=''; });
+$('q').addEventListener('input',function(){ query=this.value.trim().toLowerCase(); renderPlots(); });
+window.addEventListener('resize',function(){ if(cur==='survey'){ renderSheet(); if(!window.maplibregl||noMap) drawFallback(); } });
+
+/* ---------------- 1-second ticker ---------------- */
+setInterval(function(){
+  if(cur!=='survey') return;
+  renderChip();
+  if(avg){ if(Date.now()>=avg.start+avg.total) finishCorner(); else renderSheet(); }
+  else if(walk) renderSheet();
+},1000);
+
+/* ---------------- offline support ---------------- */
+try{
+  if('serviceWorker' in navigator && location.protocol==='https:' && window.top===window.self){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+    navigator.serviceWorker.ready.then(function(){ $('offlineChip').classList.remove('hidden'); });
+  }
+}catch(e){}
+
+/* ---------------- start ---------------- */
+load();
+vm=S.cur&&S.cur.pts&&S.cur.pts.length?'survey':'browse';
+show('survey');
+</script>
+</body>
+</html>
